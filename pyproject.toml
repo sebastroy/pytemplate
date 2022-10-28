@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytemplate"
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ["version", "description"]
+dependencies = [
+        "argparse",
+]
+
+[project.scripts]
+pytemplate = "pytemplate.__main__:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+pytemplate = ["description.txt", "tpl/*.tlp"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pytemplate.__version__"}
+description = {file = "pytemplate/description.txt"}

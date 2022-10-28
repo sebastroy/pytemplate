@@ -1,2 +1,2 @@
 # pytemplate
-Python script to auto generate python package squeleton
+Python script to auto generate python package skeleton

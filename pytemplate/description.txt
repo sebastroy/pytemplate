@@ -1,0 +1,1 @@
+a PyPA compliant module structure generator

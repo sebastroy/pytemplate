@@ -1,201 +1,244 @@
+"""
+This library implements a python package generator complying to
+PyPA standard using setuptools as a builder and supplementing
+with Gomboc-specific best practices
+"""
+
 import os
 
+from importlib.resources import files as ilrf
 
-MAKEFILE = [
-        'UNIT_DIR = test',
-        'TMP = build',
-        'VERSION := $(shell python3 setup.py --version)',
-        '',
-        '.PHONY: all',
-        'all:',
-        '',
-        '.PHONY: clean',
-        'clean:',
-        '	rm -rf $(TMP)',
-        '',
-        '.PHONY: sdist',
-        'sdist:',
-        '	mkdir -p $(TMP)',
-        '	python3 setup.py sdist --dist-dir $(TMP) --manifest $(TMP)/MANIFEST',
-        '',
-        '.PHONY: test',
-        'test: unit',
-        '',
-        '.PHONY: unit',
-        'unit:',
-        '	python3 -munittest discover -s $(UNIT_DIR) $(TESTOPTS)',
-        '',
-        '.PHONY: upload',
-        'upload: unit',
-        '	python3 setup.py sdist --dist-dir $(TMP) --manifest $(TMP)/MANIFEST upload'
-        ]
 
-INIT_ENV = [
-        '#!/bin/bash',
-        '',
-        'export PLATFORM=$(uname)',
-        'export PIP_CMD="python3 -m pip"',
-        'export ANCHOR_POINT=$(pwd)',
-        '',
-        'to_anchor() {',
-        '  cd $ANCHOR_POINT',
-        '}',
-        '',
-        'install_dependencies() {',
-        '  $PIP_CMD install --upgrade pip',
-        '  $PIP_CMD install --upgrade -r requirements.txt',
-        '  [ -d src ] && (cd src && for i in */requirements.txt; do $PIP_CMD install -r $i; done)',
-        '}',
-        '',
-        'create_venv() {',
-        '  python3 -m venv ./venv/${PLATFORM} # assume python version is at least 3.4',
-        '}',
-        '',
-        '[ ! -e ./venv/${PLATFORM}/bin/activate ] && create_venv && . ./venv/${PLATFORM}/bin/activate && install_dependencies',
-        '[ ! -e ./venv/${PLATFORM}/bin/activate ] || . ./venv/${PLATFORM}/bin/activate',
+README = [
+        '# {module_name}',
+        'ADD TEXT',
         ]
 
 
-def yield_bin(module):
-    return '\n'.join([
-        '#!/usr/bin/env python',
+DESCRIPTION = [
+        '# pylint: disable=missing-module-docstring',
+        '# pylint: disable=missing-class-docstring',
+        '# pylint: disable=missing-function-docstring',
+        'from importlib.resources import files as ilrf',
+        # pylint: disable-next=line-too-long
+        "__description__ = ilrf('{library_name}').joinpath('description.txt').read_text(encoding='UTF-8')", # noqa
         '',
-        'from ' + module + '.__main__ import main',
-        '',
-        'if __name__ == \'__main__\':',
-        '    main()'
-        ])
+        ]
 
-
-def yield_init(lib):
-    return '\n'.join([
-        'from .__version__ import version as __version__',
-        'from . import ' + lib
-        ])
-
-
-def yield_main(lib):
-    return '\n'.join([
-        'from optparse import OptionParser',
+INIT = [
+        '# pylint: disable=missing-module-docstring',
+        '# pylint: disable=missing-class-docstring',
+        '# pylint: disable=missing-function-docstring',
+        'from .__version__ import __version__ # noqa',
+        'from .__description__ import __description__ # noqa',
+        'from . import {library_name} # noqa',
         '',
-        'from . import ' + lib,
-        '',
-        'def define_cli_args():',
-        '    parser = OptionParser()',
-        '    # read file',
-        '    parser.add_option("-j", "--json-file", dest="infile", default="data.json",',
-        '                      help="name of json format input route file", metavar="FILE")',
-        '    # write file',
-        '    parser.add_option("-s", "--sol-file", dest="outfile", default="sol.json",',
-        '                      help="name of json format output route file", metavar="FILE")',
-        '    # flags',
-        '    parser.add_option("-a", "--write-allout", action="store_true", dest="allformat", default=False,',
-        '                      help="write output to all format")',
-        '    parser.add_option("-n", "--no-run", action="store_true", dest="norun", default=False,',
-        '                      help="do not run solving")',
-        '',
-        '    return parser.parse_args()',
-        '',
-        '',
-        'def main():',
-        '    (options, args) = define_cli_args()',
-        '    ' + lib + '.main(options)',
-        ])
+        ]
 
+VERSION = [
+        '# pylint: disable=missing-module-docstring',
+        '# pylint: disable=missing-class-docstring',
+        '# pylint: disable=missing-function-docstring',
+        '__version__ = "0.0.1"',
+        '',
+        ]
 
-def yield_lib():
-    return '\n'.join([
+MAIN_HEADER = [
+        '"""',
+        '    main entrypoint boilerplate',
+        '"""',
+        'import argparse',
+        '',
+        'from .__version__ import __version__',
+        'from .__description__ import __description__',
+        'from .{library_name} import {exec_funcs}',
+        '{body}',
+        ]
+
+MAIN_FUNC = [
         '',
         '',
+        'def {func}_argparse():',
+        '    """',
+        '        argparse boilerplate code',
+        '        - Add relevant options',
+        '        - in case you have multiple entrypoints with different argparse',
+        '          args lists, use the parent functionality from argparse',
+        '          see https://docs.python.org/3/library/argparse.html',
+        '    """',
+        '    parser = argparse.ArgumentParser(description=__description__)',
+        "    parser.add_argument('-v', '--version',",
+        "                        action='version',",
+        '                        version=__version__)',
+        '    # add arguments here',
         '',
-        'def main(options):',
-        '    pass'
-        ])
-
-
-def yield_makefile():
-    return '\n'.join(MAKEFILE)
-
-
-def yield_init_env():
-    return '\n'.join(INIT_ENV)
-
-
-def yield_setup(module, escript):
-    return '\n'.join([
-        'from distutils.core import setup',
-        'import os',
+        '    args = parser.parse_args()',
+        '    return args',
         '',
-        'description = "DESCRIPTION"',
         '',
-        'long_description = (',
-        ')',
+        'def {func}():',
+        '    """ {func} passover """',
+        '    args = {func}_argparse()',
+        '    {library_name}_{func}(args)',
         '',
-        'def get_version():',
-        '    for line in open(\'' + module + '/__version__.py\'):',
-        '        if \'version\' in line:',
-        '            return line.split(\'=\')[1].strip(\' \\n\\\'\"\')',
-        '    raise Error("No version")',
+        ]
+
+MAIN_CALL = [
         '',
-        'setup(',
-        '    author="Sebastien Roy",',
-        '    author_email="sebastien.roy.sr@gmail.com",',
-        '    classifiers=[',
-        '        "Environment :: Console",',
-        '        "Programming Language :: Python",',
-        '        "Topic :: Office/Business",',
-        '        "Topic :: Utilities"',
-        '    ],',
-        '    description=description,',
-        '    long_description=long_description,',
-        '    name=\'' + module + '\',',
-        '    packages=[\'' + module + '\'],',
-        '    scripts=[',
-        '            os.path.join(\'bin\', "' + escript + '"),',
-        '        ],',
-        '    version=get_version(),',
-        '    install_requires=[',
-        '        ]',
-        ')',
-        ])
+        '',
+        'def {library_name}_{func}(args):',
+        '    pass',
+        '',
+        ]
+
+LIBRARY = [
+        'def {library_name}():',
+        '    pass',
+        '',
+        ]
 
 
-def write_file(name, content):
-    with open(name, 'w+') as f:
+def write_file(fn, content):
+    """ write a template file """
+    with open(fn, 'w+', encoding='UTF-8') as f:
         f.write(content)
     f.close()
 
 
-def main(options):
-    if options.module is None:
-        raise RuntimeError('error: module name not provided')
-
-    module = options.module
-    escript = options.executable or module
-    lib = options.lib or module
-
-    os.makedirs(module)
-    os.makedirs('bin')
-
-    write_file(os.path.join('bin', escript), yield_bin(module))
-    write_file('README.md', '')
-    write_file('requirements.txt', '')
-    write_file(os.path.join(module, '__version__.py'), 'version = \'0.1\'')
-    write_file(os.path.join(module, '__init__.py'), yield_init(lib))
-    write_file(os.path.join(module, '__main__.py'), yield_main(lib))
-    write_file(os.path.join(module, lib + '.py'), yield_lib())
-    write_file('Makefile', yield_makefile())
-    write_file('init_env', yield_init_env())
-    write_file('setup.py', yield_setup(module, escript))
-    write_file('MANIFEST.in', 'include README.md VERSION')
-    write_file('.gitignore', '*.egg-info\n__pycache__\n')
-    print("module created")
-    print("do not forget to add package list in requirements.txt AND setup.py if any")
-    print("\"pip install -e .\" to initial dev install and \"pip install -e <path> --upgrade\" if you ever add more bin exec")
+def format_content(macro, **kwargs):
+    """ reformat a file list with cli args """
+    return '\n'.join(macro).format(**kwargs)
 
 
+class TemplateFiles:
+    """ Implement creation of templated files """
+    def __init__(self, module_name, library_name, exec_names):
+        self.module_name = module_name
+        self.library_name = library_name
+        self.exec_names = exec_names
+        self.process_exec()
+        files = os.listdir(ilrf('pytemplate').joinpath('tpl'))
+        templates_list = [f.replace('.tpl', '') for f in files]
+        prefix = ilrf('pytemplate').joinpath('tpl')
+        self.templates = {f.replace('DOT', '.'): prefix.joinpath(f + '.tpl')
+                          for f in templates_list}
 
-#git init .
-#git add .
-#git commit -m "initial commit"
+    def process_exec(self):
+        """ preprocess templates entrypoint-related (if any) """
+        self.library = format_content(LIBRARY, library_name=self.library_name)
+        self.exec_block = ''
+        self.main_content = None
+        if self.exec_names is None:
+            return
 
+        self.exec_block = '\n[project.scripts]\n'
+        import_funcs = []
+        main_body = ''
+        for word in self.exec_names:
+            cli, func = word.split(':')
+            self.exec_block += f"{cli} = \"{self.library_name}.__main__:{func}\"\n"
+            self.library += format_content(
+                    MAIN_CALL,
+                    library_name=self.library_name,
+                    func=func)
+            import_funcs.append(self.library_name + '_' + func)
+            main_body += format_content(
+                    MAIN_FUNC,
+                    library_name=self.library_name,
+                    func=func)
+        self.main_content = format_content(
+                MAIN_HEADER,
+                library_name=self.library_name,
+                exec_funcs=', '.join(import_funcs),
+                body=main_body)
+
+    def write(self):
+        """ main method to generate all from templates """
+        self.write_gitignore()
+        self.write_makefile()
+        self.write_pylintrc()
+        self.write_toml()
+        self.write_tox()
+        self.write_library()
+
+    def file_copy(self, fn):
+        """ simple file copy when no string changes """
+        target = fn
+        source = self.templates[fn]
+        string = source.read_text('UTF-8')
+        write_file(target, string)
+
+    def write_gitignore(self):
+        """ self explanatory """
+        self.file_copy('.gitignore')
+
+    def write_pylintrc(self):
+        """ self explanatory """
+        self.file_copy('pylintrc')
+
+    def write_tox(self):
+        """ self explanatory """
+        self.file_copy('tox.ini')
+
+    def write_makefile(self):
+        """ self explanatory """
+        fn = 'Makefile'
+        target = fn
+        source = self.templates[fn]
+        string = source.read_text('UTF-8').format(library_name=self.library_name)
+        write_file(target, string)
+
+    def write_toml(self):
+        """ self explanatory """
+        fn = 'pyproject.toml'
+        target = fn
+        source = self.templates[fn]
+        string = source.read_text('UTF-8').format(
+                module_name=self.module_name,
+                library_name=self.library_name,
+                exec_block=self.exec_block,
+                open='{',
+                close='}')
+        write_file(target, string)
+
+    def write_main(self):
+        """ self explanatory """
+        fn = '__main__.py'
+        target = os.path.join(self.library_name, fn)
+        write_file(target, self.main_content)
+
+    def write_library(self):
+        """ self explanatory """
+        if self.exec_names is not None:
+            self.write_main()
+        write_file(
+                os.path.join(self.library_name, self.library_name + '.py'),
+                self.library
+                )
+
+
+def pytemplate(args):
+    """ generate a python project files structures """
+    module_name = args.module[0]
+    library_name = args.library[0] or module_name
+    exec_names = args.exec
+    descr = args.description[0]
+
+    os.makedirs(library_name)
+
+    TemplateFiles(module_name, library_name, exec_names).write()
+
+    write_file('README.md', format_content(README, module_name=module_name))
+    # LICENSE
+    write_file(
+            os.path.join(library_name, '__description__.py'),
+            format_content(DESCRIPTION, library_name=library_name))
+    write_file(
+            os.path.join(library_name, '__init__.py'),
+            format_content(INIT, library_name=library_name))
+    write_file(
+            os.path.join(library_name, '__version__.py'),
+            format_content(VERSION))
+    write_file(
+            os.path.join(library_name, 'description.txt'),
+            descr)
